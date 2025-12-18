@@ -1,0 +1,16 @@
+# Runtime / generated
+server/saves/
+server/memory/
+server/logs/
+
+# Third-party or non-redistributable assets
+server/assets/ezlibs-assets/
+server/assets/tilesets/
+
+# Local config / secrets
+config.lua
+.env
+
+# OS junk
+.DS_Store
+Thumbs.db
