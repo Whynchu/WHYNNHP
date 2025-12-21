@@ -1,16 +1,14 @@
-# Runtime / generated
-server/saves/
-server/memory/
-server/logs/
-
-# Third-party or non-redistributable assets
-assets/ezlibs-assets/
-sassets/tilesets/
-
-# Local config / secrets
-config.lua
-.env
+# Editor / IDE junk
+.vs/
+.editorconfig
 
 # OS junk
-.DS_Store
 Thumbs.db
+.DS_Store
+
+# Logs / runtime
+*.log
+
+# Generated or local-only assets (if applicable)
+server/runtime/
+server/cache/
