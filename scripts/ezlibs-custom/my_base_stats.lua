@@ -91,125 +91,38 @@ local function ensure_hpmem_item_exists()
 end
 
 local function count_hpmem(player_id)
-  if ezmemory and ezmemory.count_player_item then
-    return ezmemory.count_player_item(player_id, HPMEM_ITEM) or 0
+  -- Prefer ezmemory_patch API (memory-backed)
+  if ezmemory and type(ezmemory.get_player_hpmem) == "function" then
+    local n = tonumber(ezmemory.get_player_hpmem(player_id))
+    if n then return n end
   end
+
+  -- Fallback (legacy): treat HPMem as an item
+  if ezmemory and type(ezmemory.count_player_item) == "function" then
+    return tonumber(ezmemory.count_player_item(player_id, HPMEM_ITEM)) or 0
+  end
+
   return 0
 end
 
 local function compute_want_max_hp(player_id)
-  local hpmem = count_hpmem(player_id) or 0
-  local want = BASE_HP + (HPMEM_BONUS * hpmem)
-  if want < 1 then want = 1 end
-  return want, hpmem
+  -- Option 2: maxHP truth is whatever Net currently says.
+  -- We do not recompute from base HP, and we do not apply any changes here.
+  local have = tonumber(Net.get_player_max_health(player_id)) or BASE_HP
+  if have < 1 then have = 1 end
+  return have, count_hpmem(player_id)
 end
 
 --=====================================================
--- HP enforcement (non-spammy)
---=====================================================
-
-local function apply_hpmem_max_hp(player_id, why)
-  why = tostring(why or "unknown")
-  if not player_id then return false end
-
-  if not Net or type(Net.get_player_max_health) ~= "function" then
-    if dbg_verbose() then
-      dbg_print(3, "apply NO-OP (no Net.get_player_max_health) player=%s why=%s",
-        tostring(player_id), why)
-    end
-    return false
-  end
-
-  local want, hpmem = compute_want_max_hp(player_id)
-  local have = tonumber(Net.get_player_max_health(player_id)) or 0
-
-  if have == want then
-    if dbg_verbose() then
-      dbg_print(3, "apply NO-OP player=%s hpmem=%d want=%d have=%d why=%s",
-        tostring(player_id), tonumber(hpmem) or 0, want, have, why)
-    end
-    return false
-  end
-
-  local applied = false
-
-  -- 1) Prefer explicit setter if supported
-  if type(Net.set_player_max_health) == "function" then
-    local ok = pcall(function()
-      Net.set_player_max_health(player_id, want)
-    end)
-    applied = ok
-
-  -- 2) Fallback: avatar mutate (ONLY if safe)
-  elseif type(Net.get_player_avatar) == "function" and type(Net.set_player_avatar) == "function" then
-    local ok_get, av = pcall(function()
-      return Net.get_player_avatar(player_id)
-    end)
-
-    if ok_get and type(av) == "table" then
-      if type(av.name) == "string" and type(av.texture_path) == "string" and type(av.animation_path) == "string" then
-        local ok_set = pcall(function()
-          av.max_health = want
-          Net.set_player_avatar(player_id, av)
-        end)
-        applied = ok_set
-      else
-        -- warn at lifecycle level (not spammy)
-        dbg_print(2, "avatar set skipped (missing required fields) player=%s why=%s",
-          tostring(player_id), why)
-      end
-    end
-  end
-
-  -- Clamp current HP down if needed
-  if applied and type(Net.get_player_health) == "function" and type(Net.set_player_health) == "function" then
-    local cur = tonumber(Net.get_player_health(player_id)) or want
-    if cur > want then
-      pcall(function()
-        Net.set_player_health(player_id, want)
-      end)
-    end
-  end
-
-  local now_have = have
-  if type(Net.get_player_max_health) == "function" then
-    now_have = tonumber(Net.get_player_max_health(player_id)) or have
-  end
-
-  -- Log only when we applied (or verbose)
-  if applied or dbg_verbose() then
-    dbg_print(2, "apply player=%s hpmem=%d want=%d have=%d now=%d applied=%s why=%s",
-      tostring(player_id),
-      tonumber(hpmem) or 0,
-      tonumber(want) or 0,
-      tonumber(have) or 0,
-      tonumber(now_have) or 0,
-      tostring(applied),
-      why
-    )
-  end
-
-  return applied
-end
-
---=====================================================
--- Finite burst ensure (no watchdog loops)
+-- Finite burst ensure (disabled for Option 2)
 --=====================================================
 
 local function burst_ensure_hp(player_id, why)
-  run_async(function()
-    if ezmemory and ezmemory.wait_until_loaded then
-      await(ezmemory.wait_until_loaded())
-    end
-
-    ensure_hpmem_item_exists()
-
-    for i = 1, 4 do
-      apply_hpmem_max_hp(player_id, tostring(why or "ensure") .. ":burst" .. tostring(i))
-      await(Async.sleep(0.6))
-    end
-  end)
+  -- Option 2: We do not enforce HP here.
+  -- MaxHP truth is whatever Net currently says (and ezmemory/eznpcs may adjust on join).
+  return
 end
+
 
 --=====================================================
 -- Telemetry intake (cache only for now)
@@ -284,16 +197,14 @@ function plugin.handle_player_join(player_id)
   telemetry.set(player_id, { folder_score = 1.0 })
 
   -- Ask client to send stats (best-effort)
-  if Net and Net.message_player then
-    Net:message_player(player_id, "[server] stats_request")
-  end
-
-  burst_ensure_hp(player_id, "join")
+if Net and Net.message_player then
+  Net.message_player(player_id, "[server] stats_request")
+end
 end
 
 function plugin.handle_player_transfer(player_id)
   dbg_print(2, "handle_player_transfer player=%s", tostring(player_id))
-  burst_ensure_hp(player_id, "transfer")
+
 end
 
 function plugin.handle_player_avatar_change(player_id, details)
@@ -303,7 +214,7 @@ function plugin.handle_player_avatar_change(player_id, details)
     dbg_print(3, "avatar_change details:\n%s", dump_table(details))
   end
 
-  burst_ensure_hp(player_id, "avatar_change")
+
 end
 
 --=====================================================
@@ -318,7 +229,7 @@ end
 
 function plugin.handle_battle_results(player_id, stats)
   -- Keep it quiet; HP enforcement does the logging when it actually changes things.
-  burst_ensure_hp(player_id, "event:battle_results")
+
 end
 
 --=====================================================
@@ -326,17 +237,11 @@ end
 --=====================================================
 
 function plugin.ensure_player_hp_is_correct(player_id, why)
-  why = tostring(why or "ensure")
-
-  local ok = pcall(function()
-    ensure_hpmem_item_exists()
-    apply_hpmem_max_hp(player_id, why)
-  end)
-
-  if not ok then
-    burst_ensure_hp(player_id, why .. ":deferred")
-  end
+  -- Option 2: no enforcement. This exists only so encounter scripts can call it
+  -- without crashing older code paths.
+  return
 end
+
 
 --=====================================================
 -- DEBUG (unified protocol)  [keep at bottom]

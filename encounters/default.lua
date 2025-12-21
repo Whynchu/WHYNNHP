@@ -3,6 +3,8 @@ print("[default.lua] LOADED")
 
 local room_builder = require('scripts/whynn_core/encounters/room_builder')
 local tileslib     = require('scripts/encounter_lib/tiles')
+require("scripts/whynn_core/npcs/hpmem_shop_bot")
+
 
 local ROOM_CFG = {
   area_id = "default",
