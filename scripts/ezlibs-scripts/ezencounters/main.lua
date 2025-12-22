@@ -20,52 +20,48 @@ local encounter_finished_callbacks = {}
 --   - get_encounters(player_id): dynamic list (for runtime selection)
 -- =========================================================
 
-local load_encounters_for_areas = function ()
-    local areas = Net.list_areas()
-    local area_encounter_tables = {}
+local load_encounters_for_areas = function()
+  local areas = Net.list_areas()
+  local area_encounter_tables = {}
 
-    for i, area_id in ipairs(areas) do
-        local encounter_table_path = CONFIG.ENCOUNTERS_PATH .. area_id
+  for i, area_id in ipairs(areas) do
+    local encounter_table_path = CONFIG.ENCOUNTERS_PATH .. area_id
 
-        local ok, tbl = pcall(function ()
-            return require(encounter_table_path)
-        end)
+    local ok, tbl_or_err = pcall(function()
+      return require(encounter_table_path)
+    end)
 
-        local ok, tbl_or_err = pcall(function ()
-    return require(encounter_table_path)
-end)
+    if ok and tbl_or_err then
+      local tbl = tbl_or_err
+      area_encounter_tables[area_id] = tbl
 
-if ok and tbl_or_err then
-    local tbl = tbl_or_err
-    area_encounter_tables[area_id] = tbl
+      -- Preload list for provisioning + named encounter registry
+      local preload_list = tbl.all_encounters or tbl.encounters or {}
 
-    -- Preload list for provisioning + named encounter registry
-    local preload_list = tbl.all_encounters or tbl.encounters or {}
-
-    for _, encounter_info in ipairs(preload_list) do
+      for _, encounter_info in ipairs(preload_list) do
         if encounter_info.path and not provided_encounter_assets[encounter_info.path] then
-            print('[ezencounters] providing mob package ' .. encounter_info.path)
-            Net.provide_asset(area_id, encounter_info.path)
-            provided_encounter_assets[encounter_info.path] = true
+          print('[ezencounters] providing mob package ' .. encounter_info.path)
+          Net.provide_asset(area_id, encounter_info.path)
+          provided_encounter_assets[encounter_info.path] = true
         end
 
         if encounter_info.name then
-            print('[ezencounters] loaded named encounter ' .. encounter_info.name)
-            named_encounters[encounter_info.name] = encounter_info
+          print('[ezencounters] loaded named encounter ' .. encounter_info.name)
+          named_encounters[encounter_info.name] = encounter_info
         end
-    end
+      end
 
-    print('[ezencounters] loaded encounter table for ' .. area_id)
-else
-    print('[ezencounters] FAILED to load encounter table for ' .. tostring(area_id)
-      .. ' path=' .. tostring(encounter_table_path)
-      .. ' err=' .. tostring(tbl_or_err))
+      print('[ezencounters] loaded encounter table for ' .. area_id)
+    else
+      print('[ezencounters] FAILED to load encounter table for ' .. tostring(area_id)
+        .. ' path=' .. tostring(encounter_table_path)
+        .. ' err=' .. tostring(tbl_or_err))
+    end
+  end
+
+  return area_encounter_tables
 end
 
-    end
-
-    return area_encounter_tables
-end
 
 local area_encounter_tables = load_encounters_for_areas()
 do
@@ -229,13 +225,29 @@ ezencounters.begin_encounter_by_name = function(player_id, encounter_name, trigg
 end
 
 ezencounters.begin_encounter = function (player_id, encounter_info, trigger_object)
-    return async(function ()
-        players_in_encounters[player_id] = { encounter_info = encounter_info }
-        ezencounters.clear_tiles_since_encounter(player_id)
-        local stats = await(Async.initiate_encounter(player_id, encounter_info.path, encounter_info))
-        return stats
+  return async(function ()
+    players_in_encounters[player_id] = { encounter_info = encounter_info }
+    ezencounters.clear_tiles_since_encounter(player_id)
+
+    local path = encounter_info and encounter_info.path or "?"
+    local name = encounter_info and encounter_info.name or "(unnamed)"
+
+    local ok, stats_or_err = pcall(function()
+      return await(Async.initiate_encounter(player_id, path, encounter_info))
     end)
+
+    if not ok then
+      print(string.format("[ezencounters] initiate_encounter FAILED name=%s path=%s err=%s",
+        tostring(name), tostring(path), tostring(stats_or_err)
+      ))
+      players_in_encounters[player_id] = nil
+      return false
+    end
+
+    return stats_or_err
+  end)
 end
+
 
 ezencounters.clear_tiles_since_encounter = function (player_id)
     player_steps_since_encounter[player_id] = nil
@@ -258,15 +270,6 @@ Net:on("battle_results", function(event)
         local player_encounter = players_in_encounters[player_id]
 
         -- === Chip Economy Hook (server-authoritative drop resolution) ===
-        pcall(function()
-            chip_economy.on_encounter_finished({
-                player_id = player_id,
-                event = event,
-                encounter_info = player_encounter.encounter_info,
-                area_id = Net.get_player_area(player_id),
-            })
-        end)
-
         if chip_economy and chip_economy.on_encounter_finished then
   pcall(function()
     chip_economy.on_encounter_finished({

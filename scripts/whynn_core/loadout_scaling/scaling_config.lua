@@ -4,6 +4,7 @@
 -- Defines ALL balance knobs for:
 --   * Player power evaluation
 --   * Tier & rank gating
+--   * Encounter pack sizing (counts)   <-- ADDED (C.PACK)
 --   * Rewards & drops
 --   * Post-battle survivability systems
 --
@@ -25,7 +26,6 @@ local C = {}
 --
 C.DIFFICULTY = 1.0
 
-
 --=====================================================
 -- HP (AUTHORITATIVE / HARD FLOOR)
 --=====================================================
@@ -34,7 +34,6 @@ C.DIFFICULTY = 1.0
 --
 C.BASE_HP     = 100
 C.HPMEM_BONUS = 20
-
 
 --=====================================================
 -- HP FLOOR (HARD GATE)
@@ -49,7 +48,6 @@ C.HP_FLOOR = {
   { tier = 3, max = math.huge },
 }
 
-
 --=====================================================
 -- MAX HP -> FLOOR TIER
 --=====================================================
@@ -61,6 +59,17 @@ C.HP_FLOOR_BY_MAX_HP = {
   { hp = 600,  tier = 2 },
   { hp = 1200, tier = 3 },
   { hp = 2000, tier = 4 },
+}
+
+--=====================================================
+-- MAX HP -> FLOOR TIER
+--=====================================================
+
+HOT_STREAK = {
+  persist    = true, -- set true if you want streak saved via ezmemory
+  max_level  = 6,     -- cap to prevent infinite escalation
+  bump_rank  = true,  -- rank +N
+  bump_count = true   -- mob count +N
 }
 
 
@@ -78,6 +87,52 @@ C.RANK_FLOOR_BY_TIER = {
   [4] = 5,
 }
 
+--=====================================================
+-- PACK SIZING (ENCOUNTER COUNTS)
+--=====================================================
+-- Central place for "how many mobs" per encounter.
+-- encounter_director reads this and applies HP safety caps.
+--
+-- by_tier:
+--   [tier] = { min = X, max = Y }
+--
+-- hp_caps:
+--   If hp_max <= cap.hp_max then plan.max is clamped to cap.max_count
+--   (and optionally min_count too).
+--   First match wins.
+--
+-- hp_nudges:
+--   Optional knobs for very high HP (rank/spike nudges).
+--
+C.PACK = {
+  -- Default pack ranges per tier
+  by_tier = {
+    [0] = { min = 2, max = 2 },
+    [1] = { min = 2, max = 4 },
+    [2] = { min = 2, max = 5 },
+    [3] = { min = 3, max = 5 },
+    [4] = { min = 3, max = 6 }, -- tier4+ fallback
+  },
+
+  -- Safety caps based on max HP
+  hp_caps = {
+    { hp_max = 120, max_count = 2, min_count = 1, note = "lowhp_cap" },
+    { hp_max = 160, max_count = 2, note = "hp160_cap" },
+  },
+
+  -- Extra allowances for very high HP (optional)
+  hp_nudges = {
+    { hp_min = 900,  tier_min = 3, spike_max = 2, spike_chance_add = 0.06, note = "hp900_spike2" },
+    { hp_min = 1200, tier_min = 3, desired_rank_add = 1, note = "hp_nudge" },
+  },
+
+  -- Final safety clamps for counts
+  clamp = {
+    min_lo = 1,
+    min_hi = 3,
+    max_hi = 4,
+  },
+}
 
 --=====================================================
 -- REWARD ECONOMY
@@ -113,7 +168,6 @@ C.REWARDS = {
   },
 }
 
-
 --=====================================================
 -- CRITICAL HP POST-BATTLE HEAL
 --=====================================================
@@ -139,7 +193,6 @@ C.CRIT_HEAL = {
   max_heal_abs  = 500,
 }
 
-
 --=====================================================
 -- CLIENT LOADOUT USAGE
 --=====================================================
@@ -150,7 +203,6 @@ C.CRIT_HEAL = {
 --   * Telemetry is blended into power score
 --
 C.USE_CLIENT_LOADOUT = true
-
 
 --=====================================================
 -- POWER MODEL WEIGHTS (FUTURE-READY)
@@ -166,7 +218,6 @@ C.POWER_W_HP     = 0.20
 C.POWER_W_BUSTER = 0.45
 C.POWER_W_FOLDER = 0.35
 
-
 --=====================================================
 -- POWER -> TIER THRESHOLDS (P-SCORE)
 --=====================================================
@@ -178,7 +229,6 @@ C.TIER_P_THRESHOLDS = {
   { tier = 2, max = 2.10 },
   { tier = 3, max = math.huge },
 }
-
 
 --=====================================================
 -- CLIENT TELEMETRY TRUST WINDOW
@@ -194,7 +244,6 @@ C.TELEMETRY = {
   max_age_s    = 15,
   trust_client = true,
 }
-
 
 --=====================================================
 -- TELEMETRY SANITY LIMITS
@@ -214,7 +263,6 @@ C.TELEMETRY_LIMITS = {
   chip_count_max = 60,
 }
 
-
 --=====================================================
 -- BUSTER POWER MODEL
 --=====================================================
@@ -232,7 +280,6 @@ C.BUSTER = {
   baseline_score = 1.70,
 }
 
-
 --=====================================================
 -- FOLDER POWER MODEL
 --=====================================================
@@ -241,7 +288,6 @@ C.BUSTER = {
 C.FOLDER = {
   baseline_score = 1.0,
 }
-
 
 --=====================================================
 -- DEBUG
