@@ -5,15 +5,16 @@
 --   Decide an encounter "plan" per player based on computed power:
 --     * tier
 --     * desired enemy rank band (with jitter + rare spikes)
---     * enemy count range (pack size)
+--     * enemy count range (pack size)  <-- NOW CONFIG-DRIVEN (C.PACK)
 --
 -- This module does NOT spawn enemies by itself.
 -- It produces a plan for encounter scripts to consume.
 --
 -- Key rules:
 --   - Tier comes from player_power.compute()
---   - HP fairness caps prevent low-HP players from getting unfair packs
---   - Loadout cannot force scary packs at low HP
+--   - Pack sizing comes from C.PACK.by_tier
+--   - HP fairness caps (pack safety) come from C.PACK.hp_caps
+--   - Optional HP nudges come from C.PACK.hp_nudges
 --   - Optional global difficulty nudges desired_rank by +/- 1
 --   - RANK_FLOOR_BY_TIER is enforced as a hard floor on desired_rank
 --
@@ -23,7 +24,7 @@
 
 local player_power = require('scripts/whynn_core/loadout_scaling/player_power')
 local C            = require('scripts/whynn_core/loadout_scaling/scaling_config')
-
+local hot_streak   = require('scripts/whynn_core/loadout_scaling/hot_streak')
 local M = {}
 
 -- In-memory encounter context keyed by player_id
@@ -57,6 +58,81 @@ local function rank_floor_for_tier(tier)
   if not (C and C.RANK_FLOOR_BY_TIER) then return 1 end
   local t = tonumber(tier) or 0
   return tonumber(C.RANK_FLOOR_BY_TIER[t]) or 1
+end
+
+--=====================================================
+-- Pack sizing (CONFIG-DRIVEN)
+--=====================================================
+-- Reads pack ranges from C.PACK.by_tier and applies HP safety caps.
+-- Also appends cap/nudge notes to plan.note for debugging.
+--
+local function pack_plan_for(power, tier, plan)
+  local PACK = C and C.PACK or nil
+
+  -- Fallback defaults if config missing
+  local by_tier = (PACK and PACK.by_tier) or {}
+  local base = by_tier[tier] or by_tier[4] or { min = 2, max = 2 }
+
+  local minc = tonumber(base.min) or 1
+  local maxc = tonumber(base.max) or minc
+
+  local hp_max = tonumber((power and (power.max_hp or power.hp_max)) or 0) or 0
+
+  -- Apply HP safety caps (first match wins)
+  if PACK and type(PACK.hp_caps) == "table" then
+    for _, cap in ipairs(PACK.hp_caps) do
+      local cap_hp = tonumber(cap.hp_max)
+      if cap_hp and hp_max > 0 and hp_max <= cap_hp then
+        maxc = math.min(maxc, tonumber(cap.max_count) or maxc)
+        if cap.min_count ~= nil then
+          minc = tonumber(cap.min_count) or minc
+        end
+        if plan and cap.note then
+          plan.note = plan.note .. " +" .. tostring(cap.note)
+        end
+        break
+      end
+    end
+  end
+
+  -- Final clamps (single authority for counts)
+  local clamp_cfg = (PACK and PACK.clamp) or {}
+  local min_lo = tonumber(clamp_cfg.min_lo) or 1
+  local min_hi = tonumber(clamp_cfg.min_hi) or 3
+  local max_hi = tonumber(clamp_cfg.max_hi) or 4
+
+  minc = clamp(minc, min_lo, min_hi)
+  maxc = clamp(maxc, minc, max_hi)
+
+  return minc, maxc
+end
+
+-- Apply optional HP nudges from config (rank/spike knobs).
+local function apply_hp_nudges(power, tier, plan)
+  local PACK = C and C.PACK or nil
+  if not (PACK and type(PACK.hp_nudges) == "table") then return end
+
+  local hp_max = tonumber((power and (power.max_hp or power.hp_max)) or 0) or 0
+
+  for _, n in ipairs(PACK.hp_nudges) do
+    local hp_min   = tonumber(n.hp_min) or math.huge
+    local tier_min = tonumber(n.tier_min) or 0
+
+    if hp_max >= hp_min and tier >= tier_min then
+      if n.spike_max ~= nil then
+        plan.spike_max = tonumber(n.spike_max) or plan.spike_max
+      end
+      if n.spike_chance_add ~= nil then
+        plan.spike_chance = plan.spike_chance + (tonumber(n.spike_chance_add) or 0)
+      end
+      if n.desired_rank_add ~= nil then
+        plan.desired_rank = plan.desired_rank + (tonumber(n.desired_rank_add) or 0)
+      end
+      if n.note then
+        plan.note = plan.note .. " +" .. tostring(n.note)
+      end
+    end
+  end
 end
 
 --=====================================================
@@ -110,6 +186,8 @@ function M.plan_from_power(power)
 
     desired_rank = 1,
     rank_jitter  = 1,
+
+    -- counts are filled from config
     min_count    = 1,
     max_count    = 2,
 
@@ -120,13 +198,12 @@ function M.plan_from_power(power)
   }
 
   -- --------------------------------------------------
-  -- Core tier bands
+  -- Core tier bands (RANK/SPICE ONLY)
+  -- Pack sizing is now config-driven via C.PACK
   -- --------------------------------------------------
   if tier <= 0 then
     plan.desired_rank = 1
     plan.rank_jitter  = 0
-    plan.min_count    = 2
-    plan.max_count    = 2
     plan.spike_chance = 0.00
     plan.spike_max    = 0
     plan.note = "tier0: rank1 pack"
@@ -134,8 +211,6 @@ function M.plan_from_power(power)
   elseif tier == 1 then
     plan.desired_rank = 2
     plan.rank_jitter  = 0
-    plan.min_count    = 2
-    plan.max_count    = 2
     plan.spike_chance = 0.18
     plan.spike_max    = 1
     plan.note = "tier1: rank2 mostly (+rare 3)"
@@ -143,8 +218,6 @@ function M.plan_from_power(power)
   elseif tier == 2 then
     plan.desired_rank = 2
     plan.rank_jitter  = 0
-    plan.min_count    = 2
-    plan.max_count    = 3
     plan.spike_chance = 0.25
     plan.spike_max    = 1
     plan.note = "tier2: softened rank2 (+sometimes 3)"
@@ -152,8 +225,6 @@ function M.plan_from_power(power)
   elseif tier == 3 then
     plan.desired_rank = 3
     plan.rank_jitter  = 1
-    plan.min_count    = 2
-    plan.max_count    = 3
     plan.spike_chance = 0.20
     plan.spike_max    = 1
     plan.note = "tier3: rank3-4 capped packs"
@@ -161,44 +232,21 @@ function M.plan_from_power(power)
   else
     plan.desired_rank = 4
     plan.rank_jitter  = 1
-    plan.min_count    = 3
-    plan.max_count    = 4
     plan.spike_chance = 0.22
     plan.spike_max    = 1
     plan.note = "tier4+: rank4-ish, bigger packs"
   end
 
   -- --------------------------------------------------
-  -- HP fairness constraints (pack safety caps)
+  -- Pack sizing (from config + HP safety caps)
   -- --------------------------------------------------
-  if hp_max <= 120 then
-    plan.max_count = 2
-    plan.min_count = 1
-
-    if tier <= 2 then
-      plan.spike_max = 1
-    end
-
-    plan.note = plan.note .. " +lowhp_cap"
-
-  elseif hp_max <= 160 then
-    plan.max_count = math.min(plan.max_count, 2)
-    plan.note = plan.note .. " +hp160_cap"
-  end
+  plan.min_count, plan.max_count = pack_plan_for(power, tier, plan)
 
   -- --------------------------------------------------
-  -- HP nudges (only when it's legit)
+  -- HP nudges (config-driven)
   -- --------------------------------------------------
-  if hp_max >= 900 and tier >= 3 then
-    plan.spike_max = 2
-    plan.spike_chance = plan.spike_chance + 0.06
-    plan.note = plan.note .. " +hp900_spike2"
-  end
-
-  if hp_max >= 1200 and tier >= 3 then
-    plan.desired_rank = plan.desired_rank + 1
-    plan.note = plan.note .. " +hp_nudge"
-  end
+  -- Example: hp900_spike2, hp_nudge
+  apply_hp_nudges(power, tier, plan)
 
   -- --------------------------------------------------
   -- Global difficulty nudge (optional)
@@ -230,14 +278,18 @@ function M.plan_from_power(power)
   end
 
   -- --------------------------------------------------
-  -- Final clamps (BN ranks, pack safety)
+  -- Final clamps (BN ranks + spike safety)
+  -- Counts are already clamped by pack_plan_for()
   -- --------------------------------------------------
   plan.desired_rank = clamp(plan.desired_rank, 1, 7)
   plan.rank_jitter  = clamp(plan.rank_jitter, 0, 2)
-  plan.min_count    = clamp(plan.min_count, 1, 3)
-  plan.max_count    = clamp(plan.max_count, plan.min_count, 3)
   plan.spike_max    = clamp(plan.spike_max, 0, 2)
   plan.spike_chance = clamp(plan.spike_chance, 0.0, 0.60)
+
+  -- If something elsewhere sets hp_max=0, note it (helps debug)
+  if hp_max <= 0 then
+    plan.note = plan.note .. " +hp_unknown"
+  end
 
   return plan
 end
@@ -249,6 +301,12 @@ end
 function M.begin_encounter(player_id, deps, meta)
   local power = player_power.compute(player_id, deps)
   local plan  = M.plan_from_power(power)
+  plan = hot_streak.apply_bonus_to_plan(player_id, plan)
+
+-- optional debug note (so your existing debug line tells the story)
+if plan.hot_streak_level and plan.hot_streak_level > 0 then
+  plan.note = (plan.note or "") .. string.format(" +HOT%d", plan.hot_streak_level)
+end
 
   local ctx = {
     started_at = os.time(),
@@ -281,8 +339,16 @@ end
 function M.get_plan(player_id, deps, meta)
   local power = player_power.compute(player_id, deps)
   local plan  = M.plan_from_power(power)
+
+  plan = hot_streak.apply_bonus_to_plan(player_id, plan)
+
+  if plan.hot_streak_level and plan.hot_streak_level > 0 then
+    plan.note = (plan.note or "") .. string.format(" +HOT%d", plan.hot_streak_level)
+  end
+
   return plan, power
 end
+
 
 -- Basic tier table selection helper
 function M.select_encounter_for_tier(tier, encounter_tables)
