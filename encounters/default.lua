@@ -7,6 +7,7 @@ local tileslib     = require('scripts/encounter_lib/tiles')
 -- Load NPC/shop bot (side-effect require)
 require("scripts/whynn_core/npcs/hpmem_shop_bot")
 
+
 --=====================================================
 -- Room config
 --=====================================================
@@ -57,18 +58,18 @@ local ROOM_CFG = {
   --=====================================================
   enemy_pool = {
     -- Existing
-    { name="Mettaur",  weight=28 },
+    { name="Mettaur",  weight=30 },
     { name="Canodumb", weight=16 },
-    { name="Gunner",   weight=7 },
+    { name="Gunner",   weight=9 },
     { name="Ratty",    weight=5  },
     { name="Swordy",   weight=14 },
 
     -- New
     { name="Shrimpy",  weight=12 },
     { name="Fishy",  weight=15 },
-    { name="Bunny",    weight=12 },
+    { name="Bunny",    weight=13 },
     { name="Flashy",   weight=7  },
-    { name="HauntedCandle",  weight=10 },
+    { name="HauntedCandle",  weight=5 },
   },
 
   -- Enemy spawn side / tile layout
