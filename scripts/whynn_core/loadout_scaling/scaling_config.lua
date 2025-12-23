@@ -55,10 +55,10 @@ C.HP_FLOOR = {
 --
 C.HP_FLOOR_BY_MAX_HP = {
   { hp = 100,  tier = 0 },
-  { hp = 250,  tier = 1 },
+  { hp = 350,  tier = 1 },
   { hp = 600,  tier = 2 },
-  { hp = 1200, tier = 3 },
-  { hp = 2000, tier = 4 },
+  { hp = 1800, tier = 3 },
+  { hp = 2500, tier = 4 },
 }
 
 --=====================================================
@@ -107,7 +107,7 @@ C.RANK_FLOOR_BY_TIER = {
 C.PACK = {
   -- Default pack ranges per tier
   by_tier = {
-    [0] = { min = 2, max = 2 },
+    [0] = { min = 2, max = 3 },
     [1] = { min = 2, max = 4 },
     [2] = { min = 2, max = 5 },
     [3] = { min = 3, max = 5 },
@@ -175,7 +175,7 @@ C.CRIT_HEAL = {
   enabled       = true,
   wild_only     = false,
 
-  threshold_pct = 0.30,
+  threshold_pct = 0.45,
   floor_pct     = 0.10,
 
   min_chance    = 0.20,
@@ -184,12 +184,12 @@ C.CRIT_HEAL = {
   min_heal_pct  = 0.06,
   max_heal_pct  = 0.50,
 
-  cooldown_s    = 45,
+  cooldown_s    = 15,
 
   tier_mult_per = 0.03,
   wild_mult     = 1.00,
 
-  min_heal_abs  = 1,
+  min_heal_abs  = 25,
   max_heal_abs  = 500,
 }
 
