@@ -12,3 +12,7 @@ Thumbs.db
 # Generated or local-only assets (if applicable)
 server/runtime/
 server/cache/
+
+# Local deps (do not commit)
+/deps/
+
