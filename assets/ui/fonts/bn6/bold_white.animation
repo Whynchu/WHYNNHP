@@ -1,0 +1,236 @@
+imagePath="server/assets/ui/fonts/bn6/bold_white.png"
+
+# =========================
+# Uppercase A–I (row 0)
+# =========================
+animation state="A"
+frame duration="1" x="0" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="B"
+frame duration="1" x="16" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="C"
+frame duration="1" x="32" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="D"
+frame duration="1" x="48" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="E"
+frame duration="1" x="64" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="F"
+frame duration="1" x="80" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="G"
+frame duration="1" x="96" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="H"
+frame duration="1" x="112" y="0" w="16" h="16" originx="0" originy="0"
+
+animation state="I"
+frame duration="1" x="128" y="0" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# Uppercase J–R (row 1)
+# =========================
+animation state="J"
+frame duration="1" x="0" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="K"
+frame duration="1" x="16" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="L"
+frame duration="1" x="32" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="M"
+frame duration="1" x="48" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="N"
+frame duration="1" x="64" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="O"
+frame duration="1" x="80" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="P"
+frame duration="1" x="96" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="Q"
+frame duration="1" x="112" y="16" w="16" h="16" originx="0" originy="0"
+
+animation state="R"
+frame duration="1" x="128" y="16" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# Uppercase S–Z + STAR (row 2)
+# =========================
+animation state="S"
+frame duration="1" x="0" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="T"
+frame duration="1" x="16" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="U"
+frame duration="1" x="32" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="V"
+frame duration="1" x="48" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="W"
+frame duration="1" x="64" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="X"
+frame duration="1" x="80" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="Y"
+frame duration="1" x="96" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="Z"
+frame duration="1" x="112" y="32" w="16" h="16" originx="0" originy="0"
+
+animation state="STAR"
+frame duration="1" x="128" y="32" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# SP, EX, numbers 0–6 (row 3)
+# =========================
+animation state="SP"
+frame duration="1" x="0" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="EX"
+frame duration="1" x="16" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="0"
+frame duration="1" x="32" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="1"
+frame duration="1" x="48" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="2"
+frame duration="1" x="64" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="3"
+frame duration="1" x="80" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="4"
+frame duration="1" x="96" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="5"
+frame duration="1" x="112" y="48" w="16" h="16" originx="0" originy="0"
+
+animation state="6"
+frame duration="1" x="128" y="48" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# 7 8 9 PLUS MB _ (row 4)
+# =========================
+animation state="7"
+frame duration="1" x="0" y="64" w="16" h="16" originx="0" originy="0"
+
+animation state="8"
+frame duration="1" x="16" y="64" w="16" h="16" originx="0" originy="0"
+
+animation state="9"
+frame duration="1" x="32" y="64" w="16" h="16" originx="0" originy="0"
+
+animation state="PLUS"
+frame duration="1" x="48" y="64" w="16" h="16" originx="0" originy="0"
+
+animation state="MB"
+frame duration="1" x="64" y="64" w="16" h="16" originx="0" originy="0"
+
+animation state="_"
+frame duration="1" x="80" y="64" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# Lowercase a–i (row 5)
+# =========================
+animation state="LOW_A"
+frame duration="1" x="0" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_B"
+frame duration="1" x="16" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_C"
+frame duration="1" x="32" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_D"
+frame duration="1" x="48" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_E"
+frame duration="1" x="64" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_F"
+frame duration="1" x="80" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_G"
+frame duration="1" x="96" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_H"
+frame duration="1" x="112" y="80" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_I"
+frame duration="1" x="128" y="80" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# Lowercase j–r (row 6)
+# =========================
+animation state="LOW_J"
+frame duration="1" x="0" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_K"
+frame duration="1" x="16" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_L"
+frame duration="1" x="32" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_M"
+frame duration="1" x="48" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_N"
+frame duration="1" x="64" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_O"
+frame duration="1" x="80" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_P"
+frame duration="1" x="96" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_Q"
+frame duration="1" x="112" y="96" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_R"
+frame duration="1" x="128" y="96" w="16" h="16" originx="0" originy="0"
+
+
+# =========================
+# Lowercase s–z (row 7)
+# =========================
+animation state="LOW_S"
+frame duration="1" x="0" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_T"
+frame duration="1" x="16" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_U"
+frame duration="1" x="32" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_V"
+frame duration="1" x="48" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_W"
+frame duration="1" x="64" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_X"
+frame duration="1" x="80" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_Y"
+frame duration="1" x="96" y="112" w="16" h="16" originx="0" originy="0"
+
+animation state="LOW_Z"
+frame duration="1" x="112" y="112" w="16" h="16" originx="0" originy="0"

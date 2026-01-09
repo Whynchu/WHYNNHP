@@ -1,0 +1,49 @@
+-- font_glyphs.anim.lua
+-- Two-row digits sheet:
+--   row 0 = bright (green)
+--   row 1 = dim    (orange)
+-- Columns: 0..9 then '/' at the end.
+
+local TEX = "/server/assets/ui/bn6/numbers_bold.png"
+
+-- If your digits look “cut off” or “too wide”, tweak these two values.
+local GLYPH_W = 8
+local GLYPH_H = 8
+
+-- Row offsets (in pixels)
+local ROW_BRIGHT_Y = 0
+local ROW_DIM_Y    = GLYPH_H
+
+-- Column indices
+local COL = {
+  ["0"]=0, ["1"]=1, ["2"]=2, ["3"]=3, ["4"]=4,
+  ["5"]=5, ["6"]=6, ["7"]=7, ["8"]=8, ["9"]=9,
+  ["/"]=10,
+}
+
+local function make_glyph(col, row_y)
+  return {
+    texture = TEX,
+    frame_width  = GLYPH_W,
+    frame_height = GLYPH_H,
+    frames = {
+      { x = col * GLYPH_W, y = row_y, w = GLYPH_W, h = GLYPH_H, duration = 1.0 }
+    }
+  }
+end
+
+local M = {
+  bright = {},
+  dim    = {},
+  meta   = {
+    w = GLYPH_W,
+    h = GLYPH_H,
+  }
+}
+
+for ch, col in pairs(COL) do
+  M.bright[ch] = make_glyph(col, ROW_BRIGHT_Y)
+  M.dim[ch]    = make_glyph(col, ROW_DIM_Y)
+end
+
+return M
