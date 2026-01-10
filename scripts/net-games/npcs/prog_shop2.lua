@@ -8,7 +8,7 @@ local Talk     = require("scripts/net-games/npcs/talk")
 local ezmemory = require("scripts/ezlibs-scripts/ezmemory")
 local Presets  = require("scripts/net-games/npcs/talk_presets")
 
-local PRICE_PER = 50
+local PRICE_PER = 125000
 
 local ERROR_SFX_PATH = "/server/assets/net-games/sfx/card_error.ogg"
 
@@ -91,7 +91,7 @@ local function build_hpmem_options()
   for i = 1, 14 do
     table.insert(opts, {
       id = ("HPMEM_%d"):format(i),
-      text = ("HPMem%-2d %d$"):format(i, PRICE_PER * i),
+      text = ("HPMemory%-2d %d$"):format(i, PRICE_PER * i),
     })
   end
   table.insert(opts, { id = "exit", text = "Exit" })

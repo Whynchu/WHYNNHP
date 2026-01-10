@@ -143,7 +143,7 @@ C.PACK = {
 C.REWARDS = {
 
   money_per_score = {
-    [0]=20, [1]=18, [2]=16, [3]=15, [4]=14,
+    [0]=20000, [1]=18000, [2]=16000, [3]=15000, [4]=14000,
   },
 
   bugfrags = {
@@ -182,7 +182,7 @@ C.CRIT_HEAL = {
   max_chance    = 0.95,
 
   min_heal_pct  = 0.06,
-  max_heal_pct  = 0.50,
+  max_heal_pct  = 0.80,
 
   cooldown_s    = 15,
 

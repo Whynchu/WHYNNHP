@@ -91,6 +91,107 @@ local function clamp(v, a, b)
   return v
 end
 
+-- =====================================================
+-- Per-character width cache (variable-width font support)
+-- =====================================================
+local _CHAR_W_CACHE = {}  -- key: font|scale|char -> width
+
+local function char_w(font, scale, ch)
+  local key = tostring(font) .. "|" .. tostring(scale) .. "|" .. tostring(ch)
+  local w = _CHAR_W_CACHE[key]
+  if w then return w end
+  w = FontSystem:getTextWidth(ch, font, scale)
+  _CHAR_W_CACHE[key] = w
+  return w
+end
+
+-- Returns a string window of pixel width <= clip_px, starting at pixel offset start_px,
+-- looping across (text .. spacer .. text) so it wraps smoothly.
+local function marquee_window(text, font, scale, clip_px, start_px, gap_px)
+  if clip_px <= 0 then return "" end
+  if text == "" then return "" end
+
+  -- Build loop string: TEXT + (gap spaces) + TEXT
+  local space_px = math.max(1, char_w(font, scale, " "))
+  local gap_spaces = math.max(1, math.ceil((gap_px or 24) / space_px))
+  local spacer = string.rep(" ", gap_spaces)
+
+    -- One-cycle loop: TEXT + GAP (gap will happen every cycle now)
+    local loop = text .. spacer
+
+
+  -- Measure loop width once (approx exact via per-char sum)
+  local loop_w = 0
+  for i = 1, #loop do
+    loop_w = loop_w + char_w(font, scale, loop:sub(i, i))
+  end
+  if loop_w <= 0 then return text end
+
+  local px = (start_px or 0) % loop_w
+
+  -- Advance to the start character by pixel offset
+  local i = 1
+  while i <= #loop and px > 0 do
+    local cw = char_w(font, scale, loop:sub(i, i))
+    if px < cw then
+      -- start in the middle of a glyph: just start at next glyph (good enough visually)
+      i = i + 1
+      break
+    end
+    px = px - cw
+    i = i + 1
+  end
+  if i > #loop then i = 1 end
+
+  -- Collect characters until we fill clip_px
+  local out = {}
+  local used = 0
+  local j = i
+  while used < clip_px and #out < (#loop + 4) do
+    if j > #loop then j = 1 end
+    local ch = loop:sub(j, j)
+    local cw = char_w(font, scale, ch)
+    if (used + cw) > clip_px then break end
+    out[#out + 1] = ch
+    used = used + cw
+    j = j + 1
+  end
+
+  return table.concat(out), loop_w
+end
+
+-- Clip text to a pixel width; if clipped, append "..."
+local function ellipsis_clip(text, font, scale, clip_px)
+  if clip_px <= 0 then return "" end
+  if text == "" then return "" end
+
+  local full_w = FontSystem:getTextWidth(text, font, scale)
+  if full_w <= clip_px then
+    return text
+  end
+
+  local dots = "..."
+  local dots_w = FontSystem:getTextWidth(dots, font, scale)
+  if dots_w >= clip_px then
+    return dots  -- nothing else fits
+  end
+
+  local out = {}
+  local used = 0
+  for i = 1, #text do
+    local ch = text:sub(i, i)
+    local cw = char_w(font, scale, ch)
+    if (used + cw + dots_w) > clip_px then
+      break
+    end
+    out[#out + 1] = ch
+    used = used + cw
+  end
+
+  return table.concat(out) .. dots
+end
+
+
 local function ensure_tick()
   if PromptVertical._tick_attached then return end
   PromptVertical._tick_attached = true
@@ -359,6 +460,10 @@ local function normalize_layout(layout)
     shop_exit_w = tonumber(layout.shop_exit_w or 0) or 0,
     shop_exit_h = tonumber(layout.shop_exit_h or 0) or 0,
 
+    -- Text clip tuning (screen pixels)
+    text_clip_gap = tonumber(layout.text_clip_gap or 8) or 8,
+
+    text_scroll_delay = tonumber(layout.text_scroll_delay or 1.0) or 1.0,
 
   }
 
@@ -481,6 +586,25 @@ function PromptMenuInstance:new(player_id, opts)
   -- We reuse these IDs and redraw in-place instead of erasing/recreating every move.
   o.menu_text_ids = {}
 
+    -- =========================================
+    -- Horizontal scroll state (selected row only)
+    -- =========================================
+o._hscroll = {
+  active = false,      -- “we are currently animating”
+  overflow = false,    -- “selected row is too wide”
+  offset = 0,
+  speed = 120,         -- px/sec
+  gap = 32,            -- px gap in the loop
+  text_width = 0,
+
+  delay = 1.0,         -- seconds before scrolling starts
+  hold_t = 0,          -- how long we’ve hovered this item
+  key = nil,           -- used to detect selection/text changes
+  loop_width = 0,
+}
+
+
+
   -- Cursor bob state (used only when menu input is active)
   o.cursor_phase  = 0
   o.cursor_base_x = nil
@@ -503,7 +627,10 @@ function PromptMenuInstance:new(player_id, opts)
   o._shop_item_intro_active = false
   o._shop_item_intro_t = 0
 
-
+  -- Overflow marquee state (driven by HIGHLIGHT visibility, not cursor)
+  o._ov_text = ""
+  o._ov_px = 0
+  o._ov_hold_t = 0
 
   -- OPEN anim timing (must outlive a single tick)
   o.menu_bg_open_t = 0
@@ -691,6 +818,8 @@ end
 
 function PromptMenuInstance:render_menu_window()
   local L = self.layout
+  self._hscroll.delay = tonumber(L.text_scroll_delay) or 1.0
+
   local x, y = self:menu_origin()
   -- Shift draw position so bottom-right stays anchored
     x = x + (MENU_W * L.scale)
@@ -867,6 +996,78 @@ function PromptMenuInstance:update_cursor_bob(dt)
       self.layout.scale
     )
 
+end
+
+-- Highlight bar is the real "selection is live" signal.
+-- Cursor may be hidden while locked, but highlight remains.
+function PromptMenuInstance:highlight_visible()
+  if self.state ~= STATE.MENU then return false end
+
+  local rows = tonumber(self.layout.visible_rows) or 5
+  local top  = self.scroll_top_index or 1
+  local sel  = self.selection_index or 1
+
+  local sel_row = sel - top
+  return (sel_row >= 0 and sel_row < rows)
+end
+
+function PromptMenuInstance:reset_overflow()
+  local sel = self.selection_index or 1
+  local cur = (self.options and self.options[sel]) or nil
+  self._ov_text = tostring(cur and cur.text or "")
+  self._ov_px = 0
+  self._ov_hold_t = 0
+end
+
+function PromptMenuInstance:update_overflow(dt)
+  if not self:highlight_visible() then return false end
+  if not (self.layout and self.layout.overflow_enabled) then return false end
+
+  local scale = tonumber(self.layout.scale) or 2.0
+  local font  = tostring(self.layout.font or "THIN")
+
+  -- Clip width in pixels (screen space)
+  local clip_px = tonumber(self.layout.overflow_clip_px)
+  if not clip_px then
+    -- Safe default: you can tune later in layout
+    clip_px = 140 * scale
+  end
+
+  local sel = self.selection_index or 1
+  local cur = (self.options and self.options[sel]) or nil
+  local text = tostring(cur and cur.text or "")
+
+  -- If selection text changed, restart
+  if text ~= (self._ov_text or "") then
+    self:reset_overflow()
+    self._ov_text = text
+  end
+
+  -- Only scroll if it actually overflows
+  local full_w = FontSystem:getTextWidth(text, font, scale)
+  if full_w <= clip_px then
+    -- No overflow => keep it clean
+    if self._ov_px ~= 0 or self._ov_hold_t ~= 0 then
+      self._ov_px = 0
+      self._ov_hold_t = 0
+      return true
+    end
+    return false
+  end
+
+  local delay = tonumber(self.layout.overflow_delay_sec) or 0.60
+  local speed = tonumber(self.layout.overflow_speed_px_per_sec) or (40 * scale)
+
+  self._ov_hold_t = (self._ov_hold_t or 0) + dt
+  if self._ov_hold_t < delay then
+    return false
+  end
+
+  local prev_px = self._ov_px or 0
+  self._ov_px = prev_px + (speed * dt)
+
+  -- Only redraw if it actually moved by at least ~1px (prevents spam)
+  return (math.floor(prev_px) ~= math.floor(self._ov_px))
 end
 
 
@@ -1058,7 +1259,8 @@ end
     or (self._text_cache_rows ~= rows)
     or (self._text_cache_total ~= total)
 
-  if redraw_text then
+
+  if redraw_text or self._hscroll.active then
     -- Keep a stable list of display IDs (one per visible row).
     -- This prevents flicker caused by erase/recreate cycles.
     if not self.menu_text_ids or #self.menu_text_ids ~= rows then
@@ -1085,12 +1287,63 @@ end
   local scale = tonumber(L.scale) or 2.0
   local row_h = (tonumber(L.row_height) or 12) * scale
 
-  -- Content top-left inside window
-  local cx = x0 + (L.padding_x or 0)
-  local cy = y0 + (L.padding_y or 0)
+-- In this project, padding values are already in screen pixels.
+local cx = x0 + (tonumber(L.padding_x) or 0)
+local cy = y0 + (tonumber(L.padding_y) or 0)
 
-  if redraw_text then
-    for i = 0, rows - 1 do
+-- Left edge of text area
+local clip_left = cx
+local gap = tonumber(L.text_clip_gap) or 8
+
+-- RIGHT edge of the *white list region*:
+-- In the shop skin, the right panel begins where the shop item card is drawn.
+-- That x is: x0 + (MENU_W*scale) - shop_item_pad_x
+local clip_right
+if L.shop_item_enabled and tonumber(L.shop_item_pad_x) then
+  local panel_left = x0 + (MENU_W * scale) - tonumber(L.shop_item_pad_x)
+  clip_right = panel_left - gap
+else
+  -- fallback: whole menu width
+  clip_right = x0 + (MENU_W * scale) - gap
+end
+
+local clip_width = math.max(0, clip_right - clip_left)
+
+    -- =====================================================
+    -- Horizontal scroll detection (ALWAYS runs)
+    -- =====================================================
+    do
+      local idx = self.selection_index
+      local opt = self.options[idx]
+      if opt then
+        local text = tostring(opt.text or "")
+        local scale = tonumber(self.layout.scale) or 2.0
+        local text_w = FontSystem:getTextWidth(text, self.layout.font, scale)
+
+        local key = tostring(self.selection_index) .. "|" .. text
+        if self._hscroll.key ~= key then
+          self._hscroll.key = key
+          self._hscroll.hold_t = 0
+          self._hscroll.offset = 0
+          self._hscroll.loop_width = 0
+        end
+
+        self._hscroll.text_width = text_w
+        self._hscroll.overflow = (text_w > clip_width)
+
+        -- active will be decided in update() after delay is met
+        if not self._hscroll.overflow then
+          self._hscroll.active = false
+          self._hscroll.hold_t = 0
+          self._hscroll.offset = 0
+          self._hscroll.loop_width = 0
+        end
+
+      end
+    end
+
+    if redraw_text or self._hscroll.active then
+      for i = 0, rows - 1 do
       local idx = top + i
       local tx = cx
       local ty = cy + (i * row_h)
@@ -1098,7 +1351,37 @@ end
       local display_id = self.menu_text_ids[i + 1]
 
       if idx <= total then
-        local text = tostring(self.options[idx].text or "")
+        local full_text = tostring(self.options[idx].text or "")
+
+        local is_selected = (idx == sel)
+        local text_w = FontSystem:getTextWidth(full_text, L.font, scale)
+        local overflow = (text_w > clip_width)
+
+        local text = full_text
+
+            if overflow then
+              if is_selected then
+                if self._hscroll.active then
+                  local gap_px = (self._hscroll.gap or 24)
+                  local window, loop_w = marquee_window(
+                    full_text, L.font, scale, clip_width, self._hscroll.offset, gap_px
+                  )
+                  text = window
+                  self._hscroll.loop_width = loop_w
+                    else
+                        -- Ellipses should remain until the menu is actually in MENU mode (cursor/highlight live).
+                        if self.state ~= STATE.MENU then
+                          text = ellipsis_clip(full_text, L.font, scale, clip_width)
+                        else
+                          local window = marquee_window(full_text, L.font, scale, clip_width, 0, 0)
+                          text = window
+                        end
+                    end
+
+              else
+                text = ellipsis_clip(full_text, L.font, scale, clip_width)
+              end
+            end
 
         -- Intro animation: per-row fade + slight slide from the right
         local opacity = 255
@@ -1131,7 +1414,7 @@ end
         FontSystem:drawTextWithId(
           self.player_id,
           text,
-          tx + xoff,
+          (clip_left + xoff),
           ty,
           L.font,
           scale,
@@ -1270,6 +1553,16 @@ function PromptMenuInstance:become_ready()
   -- Reset bob so it doesn't start mid-wave
   self.cursor_phase = 0
 
+  -- Reset marquee timing so delay starts when the cursor becomes visible
+  if self._hscroll then
+    self._hscroll.active = false
+    self._hscroll.hold_t = 0
+    self._hscroll.offset = 0
+    self._hscroll.loop_width = 0
+    self._hscroll.key = nil
+  end
+
+
   -- Goal_1_5: only draw contents once the menu window is actually ready.
   -- If we render too early (menu_bg_needs_open still true), render_menu_contents()
   -- hard-gates and never sets cursor_base_x/y, so the cursor won't appear until you move.
@@ -1285,7 +1578,7 @@ function PromptMenuInstance:become_ready()
     self:update_scroll_for_selection(true)
 
     -- Only redraw overlays; avoid forcing a full text redraw
-    self:render_menu_contents(false)
+    self:render_menu_contents(true)
   end
 
 
@@ -1341,6 +1634,7 @@ function PromptMenuInstance:do_cancel()
   -- Default: jump_to_exit
   if self.selection_index ~= self.exit_index then
     self.selection_index = self.exit_index
+    self._hscroll.offset = 0
     self:restart_shop_item_intro()
     local sc_changed = self:update_scroll_for_selection(false)
     play_cursor_move_sfx(self.player_id)
@@ -1364,6 +1658,46 @@ end
 function PromptMenuInstance:update(_dt)
   -- clamp dt to reduce visible stutter from occasional frame-time spikes
   local dt = math.min(_dt or 0, 1/30)
+
+    -- Horizontal scrolling for selected menu option (with delay)
+    -- IMPORTANT: do not start the timer until the cursor/overlays are actually visible.
+    if self._hscroll then
+      -- Scroll should run as long as the highlight bar is on-screen.
+      -- Cursor may be hidden while locked, but highlight remains.
+      local highlight_visible = (self.state == STATE.MENU) and self:highlight_visible()
+
+      if not highlight_visible then
+        -- Not in a state where the row is visibly selected; freeze marquee state.
+        self._hscroll.active = false
+        self._hscroll.hold_t = 0
+        self._hscroll.offset = 0
+      else
+
+        if self._hscroll.overflow then
+          self._hscroll.hold_t = (self._hscroll.hold_t or 0) + dt
+
+          if (self._hscroll.hold_t >= (self._hscroll.delay or 1.0)) then
+            self._hscroll.active = true
+
+            self._hscroll.offset = self._hscroll.offset + (self._hscroll.speed * dt)
+
+            local loop_w = tonumber(self._hscroll.loop_width) or 0
+            if loop_w > 0 then
+              self._hscroll.offset = self._hscroll.offset % loop_w
+            end
+
+            -- Force redraw while scrolling
+            self:render_menu_contents(true)
+          else
+            self._hscroll.active = false
+          end
+        else
+          self._hscroll.active = false
+        end
+      end
+    end
+
+
 
   local player_id = self.player_id
   local st = Displayer.Text.getTextBoxState(player_id, self.box_id)
@@ -1572,6 +1906,15 @@ function PromptMenuInstance:update(_dt)
       return
     end
 
+  -- Overflow marquee should run as long as the HIGHLIGHT is visible,
+  -- even if the cursor is hidden (locked selection).
+  if self.state == STATE.MENU then
+    local ov_changed = self:update_overflow(dt)
+    if ov_changed then
+      self:render_menu_contents(true)
+    end
+  end
+
 
   -- MENU INPUT
   if self.state ~= STATE.MENU then
@@ -1607,6 +1950,7 @@ function PromptMenuInstance:update(_dt)
         self.selection_index = self.selection_index - 1
       end
           if self.selection_index ~= prev then
+            self._hscroll.offset = 0
             self:restart_shop_item_intro()
             local sc_changed = self:update_scroll_for_selection(false)
             play_cursor_move_sfx(player_id)
@@ -1627,6 +1971,7 @@ function PromptMenuInstance:update(_dt)
       end
         if self.selection_index ~= prev then
           self:restart_shop_item_intro()
+          self._hscroll.offset = 0
           local sc_changed = self:update_scroll_for_selection(false)
           play_cursor_move_sfx(player_id)
           self:render_menu_contents(sc_changed)
