@@ -901,6 +901,34 @@ function PromptMenuInstance:update_scroll_for_selection(force)
   return force or changed
 end
 
+function PromptMenuInstance:page_jump_to(target_index)
+  local L = self.layout
+  local total = #self.options
+  local rows = L.visible_rows
+
+  -- Clamp selection
+  target_index = clamp(target_index, 1, total)
+  self.selection_index = target_index
+
+  -- Pin the selected item to the TOP of the window when possible
+  local max_top = math.max(1, total - rows + 1)
+  self.scroll_top_index = clamp(target_index, 1, max_top)
+
+  -- Reset scroll/intro state so it feels clean
+  if self._hscroll then
+    self._hscroll.active = false
+    self._hscroll.hold_t = 0
+    self._hscroll.offset = 0
+    self._hscroll.loop_width = 0
+    self._hscroll.key = nil
+  end
+
+  self:restart_shop_item_intro()
+  play_cursor_move_sfx(self.player_id)
+  self:render_menu_contents(true)
+end
+
+
 local function set_textbox_indicator_enabled(player_id, box_id, enabled)
   local bd = Displayer.Text.getTextBoxData(player_id, box_id)
   if not bd or not bd.backdrop then return end
@@ -1978,6 +2006,35 @@ function PromptMenuInstance:update(_dt)
         end
       return
 
+    end
+
+    -- Paging: RIGHT = page down, LEFT = page up
+    do
+      local rows = tonumber(self.layout.visible_rows) or 5
+      local page = math.max(1, rows)
+
+      -- Treat Exit as non-pageable target (page within real items)
+      local last_item = math.max(1, (self.exit_index or #self.options) - 1)
+
+      if Input.pop(player_id, "right") then
+        local cur = self.selection_index
+        local target = math.min(cur + page, last_item)
+
+        if target ~= cur then
+          self:page_jump_to(target)
+        end
+        return
+      end
+
+      if Input.pop(player_id, "left") then
+        local cur = self.selection_index
+        local target = math.max(cur - page, 1)
+
+        if target ~= cur then
+          self:page_jump_to(target)
+        end
+        return
+      end
     end
 
 
