@@ -609,7 +609,11 @@ o._hscroll = {
   gap = 32,            -- px gap in the loop
   text_width = 0,
 
-  delay = 1.0,         -- seconds before scrolling starts
+  delay_loop = 1.0,    -- base delay (used after wrap)
+  delay_initial = 1.0, -- longer delay when first landing on an item
+  delay = 1.0,         -- the currently-active delay (initial or loop)
+
+
   hold_t = 0,          -- how long we’ve hovered this item
   key = nil,           -- used to detect selection/text changes
   loop_width = 0,
@@ -831,7 +835,13 @@ end
 
 function PromptMenuInstance:render_menu_window()
   local L = self.layout
-  self._hscroll.delay = tonumber(L.text_scroll_delay) or 1.0
+    local base = tonumber(L.text_scroll_delay) or 1.0
+
+    -- First-hover delay is 2x; loop delay stays at base.
+    -- (So if base=0.24 => initial=0.48, loop=0.24)
+    self._hscroll.delay_loop = base
+    self._hscroll.delay_initial = base * 1.75
+    self._hscroll.delay = self._hscroll.delay_initial
 
   local x, y = self:menu_origin()
   -- Shift draw position so bottom-right stays anchored
@@ -1416,6 +1426,7 @@ local clip_width = math.max(0, clip_right - clip_left)
         if self._hscroll.key ~= key then
           self._hscroll.key = key
           self._hscroll.hold_t = 0
+          self._hscroll.delay = self._hscroll.delay_initial or self._hscroll.delay
           self._hscroll.offset = 0
           self._hscroll.loop_width = 0
         end
@@ -1785,6 +1796,7 @@ function PromptMenuInstance:update(_dt)
           if next_off >= loop_w then
             self._hscroll.offset = 0
             self._hscroll.active = false
+            self._hscroll.delay = self._hscroll.delay_loop or self._hscroll.delay
             self._hscroll.hold_t = 0
           else
             self._hscroll.offset = next_off
