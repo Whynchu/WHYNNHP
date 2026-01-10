@@ -168,10 +168,13 @@ Talk.npc({
         spend_money_persistent(ctx.player_id, cost, money)
 
         if ezmemory and type(ezmemory.give_player_item) == "function" then
-          ezmemory.give_player_item(ctx.player_id, "HPMem", qty)
+            for i = 1, qty do
+              ezmemory.give_player_item(ctx.player_id, "HPMem", 1)
+            end
+
         end
 
-        apply_plus_max_hp_now(ctx.player_id, 20 * qty)
+        --apply_plus_max_hp_now(ctx.player_id, 20 * qty)
 
         -- Refresh money display immediately
         local new_money = safe_money(ctx.player_id)
