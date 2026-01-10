@@ -257,8 +257,8 @@ P.vert_menus = {
     shop_exit_w = 56,
     shop_exit_h = 48,
 
-    text_clip_gap = 60,  -- try 8–14
-    text_scroll_delay = 0.35,  -- 1–2 sec feels good
+    text_clip_gap = 60,  -- try 60-80
+    text_scroll_delay = 0.24,  -- 0.2–0.5 sec feels good
 
 
   },

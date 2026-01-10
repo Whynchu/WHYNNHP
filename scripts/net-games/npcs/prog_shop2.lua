@@ -89,10 +89,20 @@ end
 local function build_hpmem_options()
   local opts = {}
   for i = 1, 14 do
-    table.insert(opts, {
+    local opt = {
       id = ("HPMEM_%d"):format(i),
       text = ("HPMemory%-2d %d$"):format(i, PRICE_PER * i),
-    })
+    }
+
+    -- Only HPMEM_10 gets a custom card image
+    if i == 14 then
+      opt.image   = "/server/assets/net-games/ui/bewd.png"
+      opt.image_w = 40
+      opt.image_h = 40
+    end
+
+    table.insert(opts, opt)
+
   end
   table.insert(opts, { id = "exit", text = "Exit" })
   return opts
