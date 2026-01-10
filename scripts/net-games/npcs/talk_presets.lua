@@ -257,10 +257,8 @@ P.vert_menus = {
     shop_exit_w = 56,
     shop_exit_h = 48,
 
-    -- IMPORTANT: shop skin needs a larger clip gap so text doesn't render under the monies/art area
-    text_clip_gap = 60,        -- try 60-80
-    text_scroll_delay = 0.24,  -- 0.2–0.5 feels good
-
+    text_clip_gap = 60,  -- try 60-80
+    text_scroll_delay = 0.24,  -- 0.2–0.5 sec feels good
 
 
   },
@@ -304,26 +302,6 @@ P.sfx_sets = {
     desc    = "/server/assets/net-games/sfx/card_desc.ogg",
     confirm = "/server/assets/net-games/sfx/card_confirm.ogg",
     close   = "/server/assets/net-games/sfx/card_desc_close.ogg",
-  },
-}
-
-
--- ----------------------------
--- One-off SFX paths (optional convenience)
--- ----------------------------
-P.sfx_paths = {
-  card_error = "/server/assets/net-games/sfx/card_error.ogg",
-}
-
--- ----------------------------
--- Vertical menu asset presets (PromptVertical skin packs)
--- ----------------------------
-P.vert_menu_assets = {
-  prog_shop = {
-    menu_bg       = "/server/assets/net-games/ui/prompt_vert_menu_shop_an.png",
-    menu_bg_anim  = "/server/assets/net-games/ui/prompt_vert_menu_an.animation",
-    menu_bg_frame = "/server/assets/net-games/ui/prompt_vert_menu_shop_an_frame.png",
-    highlight     = "/server/assets/net-games/ui/highlight_shop.png",
   },
 }
 

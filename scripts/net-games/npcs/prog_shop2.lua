@@ -94,23 +94,26 @@ local function build_hpmem_options()
       text = ("HPMemory%-2d %d$"):format(i, PRICE_PER * i),
     }
 
-    -- Only HPMEM_14 gets a custom card image
-    --if i == 14 then
-    --  opt.image   = "/server/assets/net-games/ui/bewd.png"
-    --  opt.image_w = 40
-    --  opt.image_h = 40
-    --end
+    -- Only HPMEM_10 gets a custom card image
+    if i == 14 then
+      opt.image   = "/server/assets/net-games/ui/bewd.png"
+      opt.image_w = 40
+      opt.image_h = 40
+    end
 
     if i == 1 then
       opt.image   = "/server/assets/net-games/ui/card_shop_hpmem1.png"
+
     end
 
     if i == 2 then
       opt.image   = "/server/assets/net-games/ui/card_shop_hpmem2.png"
+
     end
 
     if i == 3 then
       opt.image   = "/server/assets/net-games/ui/card_shop_hpmem3.png"
+
     end
 
     table.insert(opts, opt)
@@ -153,6 +156,10 @@ Talk.npc({
       -- Add the missing open question + keep your normal intro line
       open_question = "Hey!{p_1} Wanna check out my shop?!",
       intro_text    = "Just let me know if you see anything you like.",
+      texts = {
+        decline_open = "Alright!{p_0.5} Come back if you change your mind!",
+        -- (optional alias) open_no = "Alright!{p_0.5} Come back if you change your mind!",
+      },
 
       options = build_hpmem_options(),
 

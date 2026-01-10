@@ -10,56 +10,6 @@ local MenuOptions  = require("scripts/net-games/npcs/menu_options")
 
 local Talk = {}
 
--- Optional ezmemory integration (safe if ezlibs isn't installed)
-local _ok_ez, ezmemory = pcall(require, "scripts/ezlibs-scripts/ezmemory")
-if not _ok_ez then ezmemory = nil end
-
-local function _play_sfx_path(player_id, path)
-  if not path then return end
-  Net.provide_asset_for_player(player_id, path)
-  if Net.play_sound_for_player then
-    pcall(function() Net.play_sound_for_player(player_id, path) end)
-  elseif Net.play_sound then
-    pcall(function() Net.play_sound(path) end)
-  end
-end
-
--- Public helpers (used by creator scripts)
-function Talk.play_sfx(player_id, key_or_path)
-  if not key_or_path then return end
-  local path = key_or_path
-  if type(key_or_path) == "string" and key_or_path:sub(1,1) ~= "/" then
-    path = (Presets.sfx_paths and Presets.sfx_paths[key_or_path]) or key_or_path
-  end
-  _play_sfx_path(player_id, path)
-end
-
-function Talk.fmt_money(n)
-  return tostring(tonumber(n) or 0) .. "$"
-end
-
-function Talk.safe_money(player_id)
-  if ezmemory and type(ezmemory.get_player_money) == "function" then
-    local m = ezmemory.get_player_money(player_id)
-    if type(m) == "number" then return m end
-  end
-  if Net.get_player_money then
-    local m = Net.get_player_money(player_id)
-    if type(m) == "number" then return m end
-  end
-  return 0
-end
-
-function Talk.spend_money_persistent(player_id, amount, have_money)
-  if ezmemory and type(ezmemory.spend_money_persistent) == "function" then
-    return ezmemory.spend_money_persistent(player_id, amount, have_money)
-  end
-  if Net.set_player_money then
-    Net.set_player_money(player_id, (have_money or Talk.safe_money(player_id)) - amount)
-  end
-end
-
-
 --=====================================================
 -- Small table helpers
 --=====================================================
@@ -279,21 +229,6 @@ local function resolve_sfx(cfg, menu_cfg)
   return {}
 end
 
-local function resolve_assets(cfg, menu_cfg)
-  -- menu_cfg.assets can be:
-  --   - string key into Presets.vert_menu_assets
-  --   - table { menu_bg=..., highlight=..., ... }
-  --   - nil (PromptVertical defaults)
-  local v = menu_cfg.assets
-  if type(v) == "string" then
-    return shallow_copy((Presets.vert_menu_assets and Presets.vert_menu_assets[v]) or {})
-  elseif type(v) == "table" then
-    return shallow_copy(v)
-  end
-  return nil
-end
-
-
 local function resolve_options(menu_cfg)
   -- menu_cfg.options can be:
   --   - full PromptVertical options array (already built)
@@ -405,7 +340,6 @@ function Talk.vert_menu(player_id, bot_name, cfg, menu_cfg)
 
   local layout = resolve_layout(cfg, menu_cfg)
   local flow = resolve_flow(cfg, menu_cfg)
-  local assets = resolve_assets(cfg, menu_cfg)
   local sfx = resolve_sfx(cfg, menu_cfg)
 
   -- Apply SFX defaults into flow.sfx but allow caller to override per-call
@@ -479,7 +413,8 @@ local function open_menu()
     layout = layout,
     flow = flow,
 
-    assets = assets,
+    assets = menu_cfg.assets,
+    on_select = menu_cfg.on_select,
   })
 end
 

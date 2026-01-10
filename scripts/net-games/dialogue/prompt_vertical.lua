@@ -591,9 +591,9 @@ function PromptMenuInstance:new(player_id, opts)
   }
   -- Dynamic shop art cache (avoids sprite/draw id rebinding issues)
   o._shop_art_sprite_by_path = {}   -- art_path -> sprite_id
+  o._shop_art_sprite_seq = 0        -- monotonic id counter (DO NOT use #table)
   o._shop_art_active_draw_id = nil  -- currently drawn art draw_id
   o._shop_art_active_path = nil     -- currently drawn art path
-  o._shop_art_counter = 0
 
   -- Stable text display IDs (one per visible row) to prevent flicker.
   -- We reuse these IDs and redraw in-place instead of erasing/recreating every move.
@@ -1210,20 +1210,19 @@ do
 
     local art_path = cur and (cur.image or cur.img or cur.icon) or nil
 
+    -- Slot target size (UI pixels, pre-scale)
     local slot_w = tonumber(L.shop_item_slot_w) or 56
     local slot_h = tonumber(L.shop_item_slot_h) or 48
 
+    -- Optional source metrics (only needed if your PNG is NOT slot-sized)
     local art_w = tonumber(cur and (cur.image_w or cur.img_w or cur.icon_w)) or 0
     local art_h = tonumber(cur and (cur.image_h or cur.img_h or cur.icon_h)) or 0
 
-    -- Convenience: if an image is provided but no dimensions, assume it is already slot-sized.
-    if (type(art_path) == "string" and art_path ~= "") and (art_w <= 0 or art_h <= 0) then
-      art_w = slot_w
-      art_h = slot_h
-    end
+    -- If metrics are omitted, assume the asset is already slot-sized.
+    if art_w <= 0 then art_w = slot_w end
+    if art_h <= 0 then art_h = slot_h end
 
-    local has_art = (type(art_path) == "string" and art_path ~= "" and art_w > 0 and art_h > 0)
-
+    local has_art = (type(art_path) == "string" and art_path ~= "")
 
     local cur_id = cur and cur.id or nil
     local cur_text = cur and cur.text or nil
@@ -1269,9 +1268,6 @@ do
       -- hide EXIT
       erase_sprite(self.player_id, self.draw.shop_exit)
 
-      local slot_w = tonumber(L.shop_item_slot_w) or 56
-      local slot_h = tonumber(L.shop_item_slot_h) or 48
-
 if has_art then
   -- show ART stretched to slot, hide ITEM
   erase_sprite(self.player_id, self.draw.shop_item)
@@ -1284,8 +1280,8 @@ if has_art then
   -- Allocate a UNIQUE sprite_id per art_path (prevents cached texture binding)
   local sid = self._shop_art_sprite_by_path[art_path]
   if not sid then
-    self._shop_art_counter = (self._shop_art_counter or 0) + 1
-    sid = (self.spr.SHOP_ART .. "_" .. tostring(self._shop_art_counter))
+    self._shop_art_sprite_seq = (self._shop_art_sprite_seq or 0) + 1
+    sid = (self.spr.SHOP_ART .. "_" .. tostring(self._shop_art_sprite_seq))
     self._shop_art_sprite_by_path[art_path] = sid
     Net.player_alloc_sprite(self.player_id, sid, { texture_path = art_path })
   end
@@ -1358,11 +1354,7 @@ if has_art then
   else
     erase_sprite(self.player_id, self.draw.shop_item)
     erase_sprite(self.player_id, self.draw.shop_exit)
-    if self._shop_art_active_draw_id then
-      erase_sprite(self.player_id, self._shop_art_active_draw_id)
-      self._shop_art_active_draw_id = nil
-      self._shop_art_active_path = nil
-    end
+    erase_sprite(self.player_id, self.draw.shop_art)
   end
 end
 
