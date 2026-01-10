@@ -94,11 +94,23 @@ local function build_hpmem_options()
       text = ("HPMemory%-2d %d$"):format(i, PRICE_PER * i),
     }
 
-    -- Only HPMEM_10 gets a custom card image
-    if i == 14 then
-      opt.image   = "/server/assets/net-games/ui/bewd.png"
-      opt.image_w = 40
-      opt.image_h = 40
+    -- Only HPMEM_14 gets a custom card image
+    --if i == 14 then
+    --  opt.image   = "/server/assets/net-games/ui/bewd.png"
+    --  opt.image_w = 40
+    --  opt.image_h = 40
+    --end
+
+    if i == 1 then
+      opt.image   = "/server/assets/net-games/ui/card_shop_hpmem1.png"
+    end
+
+    if i == 2 then
+      opt.image   = "/server/assets/net-games/ui/card_shop_hpmem2.png"
+    end
+
+    if i == 3 then
+      opt.image   = "/server/assets/net-games/ui/card_shop_hpmem3.png"
     end
 
     table.insert(opts, opt)

@@ -10,6 +10,7 @@ require("scripts/whynn_core/npcs/hpmem_shop_bot")
 require("scripts/net-games/dialogue/startup")  -- initializes the Dialogue/Displayer systems
 require("scripts/net-games/npcs/prog_shop")    -- spawns your ProgShop NPC definition
 require("scripts/net-games/npcs/prog_shop2") 
+require("scripts/net-games/npcs/prog_shop2_condensed") 
 --=====================================================
 -- Room config
 --=====================================================
