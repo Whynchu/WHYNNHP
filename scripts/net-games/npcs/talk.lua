@@ -454,13 +454,15 @@ end
       end
 
       -- Default decline behavior:
-      -- If author provided a decline line (texts.open_no OR texts.decline_open), show it safely chained from the prompt.
-      if open_no_text then
-        local next_cfg = shallow_copy(cfg)
-        next_cfg.from_prompt = true
-        next_cfg.reuse_existing_box = true
-        Talk.start(player_id, { open_no_text }, next_cfg, bot_name)
-      end
+      -- If author provided a decline line (texts.open_no OR texts.decline_open), use it.
+      -- Otherwise, fall back to a safe default so NPC authors can't accidentally create a no-op.
+      local decline_line = open_no_text or "No worries.{p_0.5} Come back if you change your mind."
+
+      local next_cfg = shallow_copy(cfg)
+      next_cfg.from_prompt = true
+      next_cfg.reuse_existing_box = true
+      Talk.start(player_id, { decline_line }, next_cfg, bot_name)
+
       -- If no decline text and no handler: do nothing (clean close).
     end,
 
